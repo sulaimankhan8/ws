@@ -1,14 +1,17 @@
-const puppeteer = require("puppeteer");
 const express = require("express");
+const puppeteer = require("puppeteer");
 const cors = require("cors");
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: "https://your-frontend.vercel.app", // Replace with your frontend URL
+  credentials: true,
+}));
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Backend server is running!");
-});
+// Hardcoded Instagram credentials (not recommended for production)
+const username = "lung30001"; // Replace with your Instagram username
+const password = "8318683295!"; // Replace with your Instagram password
 
 app.post("/scrape", async (req, res) => {
   const { url, option } = req.body;
@@ -20,23 +23,13 @@ app.post("/scrape", async (req, res) => {
   let browser;
   try {
     browser = await puppeteer.launch({
-      headless: false, 
-      args: ['--start-maximized', '--no-sandbox', '--disable-setuid-sandbox']
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
     const page = await browser.newPage();
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    );
-    await page.setExtraHTTPHeaders({
-      "Accept-Language": "en-US,en;q=0.9",
-      "Accept-Encoding": "gzip, deflate, br",
-      "DNT": "1",
-    });
-
-    // Navigate to Instagram and log in
     await page.goto("https://www.instagram.com/accounts/login/", { waitUntil: "networkidle2" });
-    await page.type('input[name="username"]', "lung30001", { delay: 100 }); // Replace with your username
-    await page.type('input[name="password"]', "8318683295!", { delay: 100 }); // Replace with your password
+    await page.type('input[name="username"]', username, { delay: 100 });
+    await page.type('input[name="password"]', password, { delay: 100 });
     await page.click('button[type="submit"]');
     await page.waitForNavigation({ waitUntil: "networkidle2" });
 
@@ -48,7 +41,7 @@ app.post("/scrape", async (req, res) => {
       console.log("Scraping followers...");
       await page.click('a[href*="/followers/"]');
       await page.waitForSelector('div[role="dialog"]');
-      
+
       // Scroll to load followers
       let previousHeight;
       while (true) {
@@ -100,36 +93,36 @@ app.post("/scrape", async (req, res) => {
       });
 
       data = commenters;
-    } 
+    }
     else if (option === "likes") {
       console.log("Scraping likes...");
-    
+
       try {
         // Wait for the "Likes" button to appear
         await page.waitForSelector('section span[role="button"], a[href*="/liked_by/"]', { timeout: 5000 });
-    
+
         // Click the "Likes" button to open the modal
         await page.click('section span[role="button"], a[href*="/liked_by/"]');
         await page.waitForSelector('div[role="dialog"]', { timeout: 5000 });
-    
+
         // Scroll to load all users who liked the post
         let previousHeight = 0;
         let currentHeight = 0;
         let attempts = 0;
         const maxAttempts = 10; // Maximum number of scroll attempts
-    
+
         while (attempts < maxAttempts) {
           // Get the current scroll height of the modal
           currentHeight = await page.evaluate(() => {
             const modal = document.querySelector('div[role="dialog"]');
             return modal ? modal.scrollHeight : 0;
           });
-    
+
           // If no more users are loaded, break the loop
           if (currentHeight === previousHeight) {
             break;
           }
-    
+
           // Scroll down to load more users
           await page.evaluate(() => {
             const modal = document.querySelector('div[role="dialog"]');
@@ -137,17 +130,17 @@ app.post("/scrape", async (req, res) => {
               modal.scrollTop = modal.scrollHeight;
             }
           });
-    
+
           // Wait for new users to load (using setTimeout in the browser context)
           await page.evaluate(() => {
             return new Promise((resolve) => setTimeout(resolve, 2000)); // 2 seconds delay
           });
-    
+
           // Update the previous height
           previousHeight = currentHeight;
           attempts++;
         }
-    
+
         // Extract usernames of users who liked the post
         const likers = await page.evaluate(() => {
           const elements = document.querySelectorAll('div[role="dialog"] a[href^="/"]'); // Select all <a> tags in the modal
@@ -161,11 +154,11 @@ app.post("/scrape", async (req, res) => {
           });
           return Array.from(usernames); // Convert Set to array
         });
-    
+
         data = likers;
       } catch (error) {
         console.error("Error scraping likes:", error.message);
-        data = []; 
+        data = [];
       }
     }
     else {
@@ -176,14 +169,12 @@ app.post("/scrape", async (req, res) => {
     res.json({ success: true, data });
   } catch (error) {
     console.error("Scraping failed:", error.message);
-    if (browser) {
-      await browser.close();
-    }
+    if (browser) await browser.close();
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
