@@ -35,8 +35,8 @@ app.post("/scrape", async (req, res) => {
 
     // Navigate to Instagram and log in
     await page.goto("https://www.instagram.com/accounts/login/", { waitUntil: "networkidle2" });
-    await page.type('input[name="username"]', "lung30001", { delay: 100 }); // Replace with your username
-    await page.type('input[name="password"]', "8318683295!", { delay: 100 }); // Replace with your password
+    await page.type('input[name="username"]', "lung30001", { delay: 100 }); // Replace with your username as it can get ban
+    await page.type('input[name="password"]', "8318683295!", { delay: 100 }); // Replace with your password as it can get ban
     await page.click('button[type="submit"]');
     await page.waitForNavigation({ waitUntil: "networkidle2" });
 
@@ -49,7 +49,7 @@ app.post("/scrape", async (req, res) => {
       await page.click('a[href*="/followers/"]');
       await page.waitForSelector('div[role="dialog"]');
       
-      // Scroll to load followers
+      // Scroll to load followers,it will not work on lazy loading
       let previousHeight;
       while (true) {
         const currentHeight = await page.evaluate(() => {
